@@ -1,0 +1,2 @@
+rootProject.name = "RecordingSDK30"
+include ':app'
