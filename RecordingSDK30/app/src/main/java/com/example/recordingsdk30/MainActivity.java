@@ -23,6 +23,7 @@ import android.widget.Button;
 import android.widget.Toast;
 
 import java.io.BufferedInputStream;
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInput;
@@ -33,12 +34,15 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -119,14 +123,8 @@ public class MainActivity extends AppCompatActivity {
 
                 Socket socket = new Socket(host, port);
 
-                InputStream is = socket.getInputStream();
-                OutputStream os = socket.getOutputStream();
-
-                // 파일명 전송
-                byte[] byteArr = null;
-                byteArr = data.getBytes("UTF-8");
-                os.write(byteArr);
-                os.flush();
+                PrintWriter writer = new PrintWriter(socket.getOutputStream(), true);
+                writer.printf(data);
 
                 // 파일 전송
                 DataInputStream dis = new DataInputStream(new FileInputStream(new File(path+"/"+folderName+"/"+data)));
@@ -138,11 +136,12 @@ public class MainActivity extends AppCompatActivity {
                     dos.write(buf, 0, read);
                     dos.flush();
                 }
-
                 Log.d(TAG, "Data Transmitted OK!");
 
-                is.close();
-                os.close();
+//                BufferedReader br = new BufferedReader(new InputStreamReader(socket.getInputStream(),"UTF-8"));
+//                String recvData = br.readLine();
+//                Log.d(TAG, "recvData : "+recvData);
+
                 dis.close();
                 dos.close();
                 socket.close();
