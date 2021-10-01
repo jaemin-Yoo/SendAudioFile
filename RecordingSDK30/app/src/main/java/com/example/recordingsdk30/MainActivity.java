@@ -43,29 +43,22 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainTag";
-    private String img_path;
 
     // Layout
-    Button btn_send;
+    Button btn_connect;
+    Button btn_disconnect;
     Button btn_test;
     Button btn_convert;
-
-    // Socket
-    private static String SERVER_IP = "192.168.0.169";
-    private static int SERVER_PORT = 50000;
-    private static String folderName = "Call";
-
-    // Handler
-    Handler handler = new Handler(); // 토스트를 띄우기 위해 메인스레드 핸들러 객체 생성
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -77,13 +70,21 @@ public class MainActivity extends AppCompatActivity {
         isExternalStorageWritable();
         isExternalStorageReadable();
 
-        btn_send = findViewById(R.id.btn_send);
-        btn_send.setOnClickListener(new View.OnClickListener() {
+        btn_connect = findViewById(R.id.btn_connect);
+        btn_connect.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                String sendData = findData();
-                SocketThread thread = new SocketThread(SERVER_IP, SERVER_PORT, sendData);
-                thread.start();
+                Intent serviceIntent = new Intent(MainActivity.this, Foreground.class);
+                startService(serviceIntent);
+            }
+        });
+
+        btn_disconnect = findViewById(R.id.btn_disconnect);
+        btn_disconnect.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Intent serviceIntent = new Intent(MainActivity.this, Foreground.class);
+                stopService(serviceIntent);
             }
         });
 
@@ -100,95 +101,9 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 Log.d(TAG, "TEST");
+
             }
         });
-    }
-
-    class SocketThread extends Thread{
-        String host;
-        int port;
-        String data;
-
-        public SocketThread(String host, int port, String data){
-            this.host = host;
-            this.data = data;
-            this.port = port;
-        }
-
-        @Override
-        public void run() {
-            try{
-                File filepath = Environment.getExternalStorageDirectory();
-                String path = filepath.getPath(); // /storage/emulated/0
-
-                Socket socket = new Socket(host, port);
-
-                PrintWriter writer = new PrintWriter(socket.getOutputStream(), true);
-                writer.printf(data);
-
-                // 파일 전송
-                DataInputStream dis = new DataInputStream(new FileInputStream(new File(path+"/"+folderName+"/"+data)));
-                DataOutputStream dos = new DataOutputStream(socket.getOutputStream());
-
-                int read;
-                byte[] buf = new byte[1024];
-                while((read = dis.read(buf)) > 0) {
-                    dos.write(buf, 0, read);
-                    dos.flush();
-                }
-                Log.d(TAG, "Data Transmitted OK!");
-
-//                BufferedReader br = new BufferedReader(new InputStreamReader(socket.getInputStream(),"UTF-8"));
-//                String recvData = br.readLine();
-//                Log.d(TAG, "recvData : "+recvData);
-
-                dis.close();
-                dos.close();
-                socket.close();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
-    private String findData(){
-        List<String> fileList = FileList(folderName);
-
-        List<String> tempList = new ArrayList<>();
-        for (String s : fileList){
-            String fileDate = (s.substring(s.length()-17, s.length()-4)); // 날짜만 추출
-            tempList.add(fileDate);
-        }
-        Collections.sort(tempList, Collections.reverseOrder()); // 날짜 정렬
-        String tempData = tempList.get(0); // 가장 최근 날짜 추출
-        Log.d(TAG, "tempData : "+tempData);
-
-        String sendData = "";
-        for (String s : fileList){
-            if (s.contains(tempData)){
-                sendData = s; // 가장 최근 날짜 파일 추출
-                Log.d(TAG, "sendData : "+sendData);
-            }
-        }
-
-        return sendData;
-    }
-
-    private List<String> FileList(String strFolderName){
-        File filepath = Environment.getExternalStorageDirectory();
-        String path = filepath.getPath(); // /storage/emulated/0
-
-        File directory = new File(path+"/"+strFolderName);
-        File[] files = directory.listFiles();
-
-        List<String> filesNameList = new ArrayList<>();
-
-        for (int i=0; i<files.length; i++){
-            filesNameList.add(files[i].getName());
-        }
-
-        Log.d(TAG, strFolderName+" 파일 리스트 :"+filesNameList.toString());
-        return filesNameList;
     }
 
     public void checkPermission(){

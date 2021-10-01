@@ -13,10 +13,16 @@
         android:gravity="center">
 
         <Button
-            android:id="@+id/btn_send"
+            android:id="@+id/btn_connect"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="전송"/>
+            android:text="소켓 연결"/>
+
+        <Button
+            android:id="@+id/btn_disconnect"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="소켓 종료"/>
 
         <Button
             android:id="@+id/btn_convert"
