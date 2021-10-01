@@ -36,6 +36,7 @@ import java.util.List;
 public class Foreground extends Service {
     private static final String TAG = "ForegroundTag";
     private String connTime;
+    private String prevSize = "";
 
     // Notification
     private static final String CHANNEL_ID = "FGS1";
@@ -60,7 +61,7 @@ public class Foreground extends Service {
         // if 통화 중 상태라면
         long now = System.currentTimeMillis();
         Date mDate = new Date(now);
-        SimpleDateFormat sdf = new SimpleDateFormat("yyMMdd_hhmmss");
+        SimpleDateFormat sdf = new SimpleDateFormat("yyMMdd_HHmmss");
         connTime = sdf.format(mDate);
         Log.d(TAG, "connTime: "+connTime);
         sThread.start();
@@ -84,43 +85,62 @@ public class Foreground extends Service {
                 while(true){
                     String sendData = findData(); // 통화 중 저장된 통화파일 가져오기
                     if (sendData != "Not yet"){
-                        Log.d(TAG, "Ready");
-                        File filepath = Environment.getExternalStorageDirectory();
-                        String path = filepath.getPath(); // /storage/emulated/0
+                        while(true){
+                            Log.d(TAG, "Recording..");
+                            // 파일 경로 가져오기
+                            File filepath = Environment.getExternalStorageDirectory();
+                            String path = filepath.getPath(); // /storage/emulated/0
 
-                        writer.printf(sendData);
+                            // 파일 사이즈 추출
+                            File mFile = new File(path+"/"+folderName+"/"+sendData);
+                            long fileSize = mFile.length();
+                            String strFileSize = Long.toString(fileSize);
+                            Log.d(TAG, "fileSize : "+strFileSize);
+                            Log.d(TAG, "prevSize : "+prevSize);
 
-                        // 파일 전송
-                        dis = new DataInputStream(new FileInputStream(new File(path+"/"+folderName+"/"+sendData)));
-
-                        int read;
-                        byte[] buf = new byte[1024];
-                        while((read = dis.read(buf)) > 0) {
-                            dos.write(buf, 0, read);
-                            dos.flush();
-                        }
-                        Log.d(TAG, "Data Transmitted OK!");
-
-                        dos.writeUTF("Complete");
-                        dos.flush();
-
-                        String recvData = br.readLine();
-
-                        Log.d(TAG, "recvData : "+recvData);
-
-                        Handler handler = new Handler(Looper.getMainLooper());
-                        handler.post(new Runnable() {
-                            @Override
-                            public void run() {
-                                Toast.makeText(Foreground.this, recvData, Toast.LENGTH_SHORT).show();
+                            // 통화 녹음이 완료되기 전 파일을 전송하는 것을 방지
+                            if (prevSize.equals(strFileSize) == false) {
+                                prevSize = strFileSize;
+                                sleep(5000);
+                                continue;
                             }
-                        });
+                            Log.d(TAG, "Ready");
+
+                            String fileInfo = sendData+"/"+strFileSize;
+                            writer.printf(fileInfo);
+
+                            // 파일 전송
+                            dis = new DataInputStream(new FileInputStream(mFile));
+
+                            int read;
+                            byte[] buf = new byte[1024];
+                            while((read = dis.read(buf)) > 0) {
+                                dos.write(buf, 0, read);
+                                dos.flush();
+                            }
+                            Log.d(TAG, "Data Transmitted OK!");
+
+                            String recvData = br.readLine(); // 한 줄씩 받기 때문에 개행문자(\n)를 받아야 대기상태에 안머무름
+
+                            Log.d(TAG, "recvData : "+recvData);
+
+                            // Service 에서 Toast를 사용하기 위한 Handler
+                            Handler handler = new Handler(Looper.getMainLooper());
+                            handler.post(new Runnable() {
+                                @Override
+                                public void run() {
+                                    Toast.makeText(Foreground.this, recvData, Toast.LENGTH_SHORT).show();
+                                }
+                            });
+
+                            break;
+                        }
                     } else{
-                        Log.d(TAG, "Not yet");
-                        sleep(10000);
+                        Log.d(TAG, "No recording");
+                        sleep(5000);
                     }
 
-                    break;
+
                 }
             } catch (Exception e){
                 e.printStackTrace();
@@ -136,26 +156,26 @@ public class Foreground extends Service {
             String fileDate = (s.substring(s.length()-17, s.length()-4)); // 날짜만 추출
             tempList.add(fileDate);
         }
-        //tempList.add(connTime);
+        tempList.add(connTime);
         Collections.sort(tempList, Collections.reverseOrder()); // 날짜 정렬
         String tempData = tempList.get(0); // 가장 최근 날짜 추출
 
         // 통화 중 저장된 파일 확인
-//        if (tempData == connTime){
-//            return "Not yet";
-//        } else{
-//            connTime = tempData;
-//        }
+        if (tempData.equals(connTime) == true){
+            return "Not yet";
+        } else{
+            connTime = tempData;
+        }
 
-        String sendData = "";
+        String sendFileName = "";
         for (String s : fileList){
             if (s.contains(tempData)){
-                sendData = s; // 가장 최근 날짜 파일 추출
-                Log.d(TAG, "sendData : "+sendData);
+                sendFileName = s; // 가장 최근 날짜 파일 추출
+                Log.d(TAG, "sendFileName : "+sendFileName);
             }
         }
 
-        return sendData;
+        return sendFileName;
     }
 
     private List<String> FileList(String strFolderName){
@@ -222,6 +242,10 @@ public class Foreground extends Service {
             }
             if (socket != null){
                 socket.close();
+            }
+
+            if (sThread != null){
+                sThread.interrupt();
             }
         } catch (IOException e) {
             e.printStackTrace();
