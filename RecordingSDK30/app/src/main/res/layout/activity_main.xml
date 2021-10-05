@@ -13,22 +13,10 @@
         android:gravity="center">
 
         <Button
-            android:id="@+id/btn_connect"
+            android:id="@+id/btn_wait"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="소켓 연결"/>
-
-        <Button
-            android:id="@+id/btn_disconnect"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="소켓 종료"/>
-
-        <Button
-            android:id="@+id/btn_convert"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="오디오 파일 변환"/>
+            android:text="통화 대기"/>
 
         <Button
             android:id="@+id/btn_test"

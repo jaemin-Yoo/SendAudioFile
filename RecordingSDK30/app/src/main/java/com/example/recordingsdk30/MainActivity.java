@@ -16,6 +16,8 @@ import android.os.Environment;
 import android.os.Handler;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
+import android.telephony.PhoneStateListener;
+import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
@@ -55,10 +57,12 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainTag";
 
     // Layout
-    Button btn_connect;
-    Button btn_disconnect;
+    Button btn_wait;
     Button btn_test;
-    Button btn_convert;
+
+    // 통화 상태
+    TelephonyManager telephonyManager;
+    boolean isCalling = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -70,29 +74,12 @@ public class MainActivity extends AppCompatActivity {
         isExternalStorageWritable();
         isExternalStorageReadable();
 
-        btn_connect = findViewById(R.id.btn_connect);
-        btn_connect.setOnClickListener(new View.OnClickListener() {
+        btn_wait = findViewById(R.id.btn_wait);
+        btn_wait.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Intent serviceIntent = new Intent(MainActivity.this, Foreground.class);
-                startService(serviceIntent);
-            }
-        });
-
-        btn_disconnect = findViewById(R.id.btn_disconnect);
-        btn_disconnect.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Intent serviceIntent = new Intent(MainActivity.this, Foreground.class);
-                stopService(serviceIntent);
-            }
-        });
-
-        btn_convert = findViewById(R.id.btn_convert);
-        btn_convert.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Log.d(TAG, "CONVERT");
+                telephonyManager = (TelephonyManager) getSystemService(TELEPHONY_SERVICE);
+                telephonyManager.listen(phoneStateListener, PhoneStateListener.LISTEN_CALL_STATE);
             }
         });
 
@@ -101,10 +88,57 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 Log.d(TAG, "TEST");
-
             }
         });
     }
+
+    PhoneStateListener phoneStateListener = new PhoneStateListener() {
+        @Override
+        public void onCallStateChanged(int state, String phoneNumber) {
+            switch (state) {
+                case TelephonyManager.CALL_STATE_IDLE:
+                    if (isCalling == true){
+                        Log.d(TAG, "통화 종료");
+                        if (Foreground.serviceIntent != null){
+                            Intent serviceIntent = new Intent(MainActivity.this, Foreground.class);
+                            stopService(serviceIntent);
+                            Toast.makeText(MainActivity.this, "서비스 종료", Toast.LENGTH_SHORT).show();
+                        } else{
+                            Log.d(TAG, "실행 중인 서비스가 없습니다.");
+                            Toast.makeText(MainActivity.this, "실행 중인 서비스가 없습니다.", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                    isCalling = false;
+                    break;
+                case TelephonyManager.CALL_STATE_OFFHOOK:
+                    Log.d(TAG, "통화 발신 중");
+                    if (Foreground.serviceIntent == null){
+                        Intent serviceIntent = new Intent(MainActivity.this, Foreground.class);
+                        startService(serviceIntent);
+                        Toast.makeText(MainActivity.this, "서비스 실행", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(MainActivity.this, "스팸 판단을 위해 최소 1분~1분30초 간 녹음을 진행해주세요.", Toast.LENGTH_SHORT).show();
+                    } else{
+                        Log.d(TAG, "이미 실행 중 입니다.");
+                        Toast.makeText(MainActivity.this, "이미 실행 중 입니다.", Toast.LENGTH_SHORT).show();
+                    }
+                    isCalling = true;
+                    break;
+                case TelephonyManager.CALL_STATE_RINGING:
+                    Log.d(TAG, "통화 수신 중");
+                    if (Foreground.serviceIntent == null){
+                        Intent serviceIntent = new Intent(MainActivity.this, Foreground.class);
+                        startService(serviceIntent);
+                        Toast.makeText(MainActivity.this, "서비스 실행", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(MainActivity.this, "스팸 판단을 위해 최소 1분~1분30초 간 녹음을 진행해주세요.", Toast.LENGTH_SHORT).show();
+                    } else{
+                        Log.d(TAG, "이미 실행 중 입니다.");
+                        Toast.makeText(MainActivity.this, "이미 실행 중 입니다.", Toast.LENGTH_SHORT).show();
+                    }
+                    isCalling = true;
+                    break;
+            }
+        }
+    };
 
     public void checkPermission(){
         String temp = "";
