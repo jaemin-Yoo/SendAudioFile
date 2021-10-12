@@ -7,21 +7,30 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import android.Manifest;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.media.MediaRecorder;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
+import android.os.Looper;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.telephony.PhoneStateListener;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
+import android.widget.BaseAdapter;
 import android.widget.Button;
+import android.widget.ListView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.BufferedInputStream;
@@ -60,9 +69,25 @@ public class MainActivity extends AppCompatActivity {
     Button btn_wait;
     Button btn_test;
 
-    // 통화 상태
+    // Call State
     TelephonyManager telephonyManager;
     boolean isCalling = false;
+
+    // Recording
+    MediaRecorder recorder;
+
+    ArrayList<SampleData> dataArrayList;
+    private MyAdapter myAdapter;
+
+    // Socket
+    private Socket socket;
+    private static String SERVER_IP = "192.168.0.169";
+    private static int SERVER_PORT = 50000;
+    private DataInputStream dis;
+    private DataOutputStream dos;
+    private PrintWriter writer;
+    private BufferedReader br;
+    private static String folderName = "Call";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -80,6 +105,7 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View view) {
                 telephonyManager = (TelephonyManager) getSystemService(TELEPHONY_SERVICE);
                 telephonyManager.listen(phoneStateListener, PhoneStateListener.LISTEN_CALL_STATE);
+                Toast.makeText(MainActivity.this, "통화 대기 상태", Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -88,8 +114,115 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 Log.d(TAG, "TEST");
+
+                Toast.makeText(MainActivity.this, "통화녹음목록 불러오는 중", Toast.LENGTH_SHORT).show();
+
+                dataArrayList = new ArrayList<SampleData>();
+
+                ListView listView = findViewById(R.id.listView);
+                myAdapter = new MyAdapter(MainActivity.this, dataArrayList);
+
+                listView.setAdapter(myAdapter);
+
+                sThread.start();
             }
         });
+    }
+
+    private Thread sThread = new Thread("Socket Thread"){
+        @Override
+        public void run() {
+            try {
+                socket = new Socket(SERVER_IP, SERVER_PORT);
+                dos = new DataOutputStream(socket.getOutputStream());
+                writer = new PrintWriter(socket.getOutputStream(), true);
+                br = new BufferedReader(new InputStreamReader(socket.getInputStream(),"UTF-8"));
+                Log.d(TAG, "Socket : "+socket);
+
+                List<String> fileList = FileList(folderName); // 통화 목록에 있는 파일 리스트 가져오기
+
+                List<String> tempList = new ArrayList<>();
+                for (String s : fileList){
+                    String fileDate = s.substring(s.length()-17, s.length()-4); // 날짜만 추출
+                    tempList.add(fileDate);
+                }
+                Collections.sort(tempList, Collections.reverseOrder()); // 날짜 정렬
+
+
+
+                for (int i = 0; i<5; i++){
+                    String tempData = tempList.get(i);
+
+                    String sendData = "";
+                    for (String s : fileList){
+                        if (s.contains(tempData)){
+                            sendData = s; // 가장 최근 날짜 파일 추출
+                            Log.d(TAG, "sendData : "+sendData);
+                            break;
+                        }
+                    }
+
+                    // 파일 경로 가져오기
+                    File filepath = Environment.getExternalStorageDirectory();
+                    String path = filepath.getPath(); // /storage/emulated/0
+
+                    // 파일 사이즈 추출
+                    File mFile = new File(path+"/"+folderName+"/"+sendData);
+                    long fileSize = mFile.length();
+                    String strFileSize = Long.toString(fileSize);
+                    Log.d(TAG, "fileSize : "+strFileSize);
+
+                    String fileInfo = sendData+"/"+strFileSize;
+                    writer.printf(fileInfo);
+
+                    // 파일 전송
+                    dis = new DataInputStream(new FileInputStream(mFile));
+
+                    int read;
+                    byte[] buf = new byte[1024];
+                    while((read = dis.read(buf)) > 0) {
+                        dos.write(buf, 0, read);
+                        dos.flush();
+                    }
+                    Log.d(TAG, "Data Transmitted OK!");
+
+                    String recvData = br.readLine(); // 한 줄씩 받기 때문에 개행문자(\n)를 받아야 대기상태에 안머무름
+                    Log.d(TAG, "recvData : "+recvData);
+                    dataArrayList.add(new SampleData(sendData+"   ->   ",recvData));
+
+                    Handler handler = new Handler(Looper.getMainLooper());
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            myAdapter.notifyDataSetChanged();
+                        }
+                    });
+                }
+
+                dis.close();
+                dos.close();
+                writer.close();
+                socket.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    };
+
+    private List<String> FileList(String strFolderName){
+        File filepath = Environment.getExternalStorageDirectory();
+        String path = filepath.getPath(); // /storage/emulated/0
+
+        File directory = new File(path+"/"+strFolderName);
+        File[] files = directory.listFiles();
+
+        List<String> filesNameList = new ArrayList<>();
+
+        for (int i=0; i<files.length; i++){
+            filesNameList.add(files[i].getName());
+        }
+
+        return filesNameList;
     }
 
     PhoneStateListener phoneStateListener = new PhoneStateListener() {

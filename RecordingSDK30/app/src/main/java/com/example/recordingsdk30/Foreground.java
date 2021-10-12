@@ -69,6 +69,7 @@ public class Foreground extends Service {
         SimpleDateFormat sdf = new SimpleDateFormat("yyMMdd_HHmmss");
         connTime = sdf.format(mDate);
         Log.d(TAG, "connTime: "+connTime);
+
         sThread.start();
     }
 
@@ -195,13 +196,14 @@ public class Foreground extends Service {
             if (s.contains(tempData)){
                 sendFileName = s; // 가장 최근 날짜 파일 추출
                 Log.d(TAG, "sendFileName : "+sendFileName);
+                break;
             }
         }
 
         return sendFileName;
     }
 
-    private List<String> FileList(String strFolderName){
+    public List<String> FileList(String strFolderName){
         File filepath = Environment.getExternalStorageDirectory();
         String path = filepath.getPath(); // /storage/emulated/0
 
