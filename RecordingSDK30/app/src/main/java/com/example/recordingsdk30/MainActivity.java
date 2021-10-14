@@ -51,6 +51,7 @@ import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.net.ConnectException;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -67,6 +68,7 @@ public class MainActivity extends AppCompatActivity {
 
     // Layout
     Button btn_wait;
+    Button btn_list;
     Button btn_test;
 
     // Call State
@@ -96,16 +98,30 @@ public class MainActivity extends AppCompatActivity {
 
         checkPermission();
 
-        isExternalStorageWritable();
-        isExternalStorageReadable();
-
         btn_wait = findViewById(R.id.btn_wait);
         btn_wait.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                Log.d(TAG, "Wait..");
                 telephonyManager = (TelephonyManager) getSystemService(TELEPHONY_SERVICE);
                 telephonyManager.listen(phoneStateListener, PhoneStateListener.LISTEN_CALL_STATE);
                 Toast.makeText(MainActivity.this, "통화 대기 상태", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        btn_list = findViewById(R.id.btn_list);
+        btn_list.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Log.d(TAG, "Load..");
+                Toast.makeText(MainActivity.this, "통화 녹음목록 불러오는 중", Toast.LENGTH_SHORT).show();
+
+                dataArrayList = new ArrayList<SampleData>();
+                dataArrayList.add(new SampleData("서버 연결상태 확인 중..",""));
+                ListView listView = findViewById(R.id.listView);
+                myAdapter = new MyAdapter(MainActivity.this, dataArrayList);
+                listView.setAdapter(myAdapter);
+                sThread.start();
             }
         });
 
@@ -114,17 +130,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 Log.d(TAG, "TEST");
-
-                Toast.makeText(MainActivity.this, "통화녹음목록 불러오는 중", Toast.LENGTH_SHORT).show();
-
-                dataArrayList = new ArrayList<SampleData>();
-
-                ListView listView = findViewById(R.id.listView);
-                myAdapter = new MyAdapter(MainActivity.this, dataArrayList);
-
-                listView.setAdapter(myAdapter);
-
-                sThread.start();
+                Toast.makeText(MainActivity.this, "테스트", Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -133,7 +139,20 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void run() {
             try {
+                Log.d(TAG, "TEST1");
                 socket = new Socket(SERVER_IP, SERVER_PORT);
+
+                dataArrayList.clear();
+                dataArrayList.add(new SampleData("불러오는 중..",""));
+
+                Handler handler = new Handler(Looper.getMainLooper());
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        myAdapter.notifyDataSetChanged();
+                    }
+                });
+
                 dos = new DataOutputStream(socket.getOutputStream());
                 writer = new PrintWriter(socket.getOutputStream(), true);
                 br = new BufferedReader(new InputStreamReader(socket.getInputStream(),"UTF-8"));
@@ -148,15 +167,13 @@ public class MainActivity extends AppCompatActivity {
                 }
                 Collections.sort(tempList, Collections.reverseOrder()); // 날짜 정렬
 
-
-
                 for (int i = 0; i<5; i++){
                     String tempData = tempList.get(i);
 
                     String sendData = "";
                     for (String s : fileList){
                         if (s.contains(tempData)){
-                            sendData = s; // 가장 최근 날짜 파일 추출
+                            sendData = s; // 해당 날짜 파일 추출
                             Log.d(TAG, "sendData : "+sendData);
                             break;
                         }
@@ -190,7 +207,7 @@ public class MainActivity extends AppCompatActivity {
                     Log.d(TAG, "recvData : "+recvData);
                     dataArrayList.add(new SampleData(sendData+"   ->   ",recvData));
 
-                    Handler handler = new Handler(Looper.getMainLooper());
+                    handler = new Handler(Looper.getMainLooper());
                     handler.post(new Runnable() {
                         @Override
                         public void run() {
@@ -199,11 +216,31 @@ public class MainActivity extends AppCompatActivity {
                     });
                 }
 
+                dataArrayList.remove(0);
+                dataArrayList.add(0, new SampleData("완료",""));
+                handler = new Handler(Looper.getMainLooper());
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        myAdapter.notifyDataSetChanged();
+                    }
+                });
+
                 dis.close();
                 dos.close();
                 writer.close();
                 socket.close();
             } catch (IOException e) {
+                Log.d(TAG, "No Connect");
+                dataArrayList.clear();
+                dataArrayList.add(new SampleData("서버 연결 안됨",""));
+                Handler handler = new Handler(Looper.getMainLooper());
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        myAdapter.notifyDataSetChanged();
+                    }
+                });
                 e.printStackTrace();
             }
         }
@@ -311,28 +348,5 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         }
-    }
-
-    /* 외부 저장소가 현재 read와 write를 할 수 있는 상태인지 확인한다 */
-    public boolean isExternalStorageWritable() {
-        String state = Environment.getExternalStorageState();
-        if (Environment.MEDIA_MOUNTED.equals(state)) {
-            Log.d(TAG, "write 가능");
-            return true;
-        }
-        return false;
-    }
-
-
-
-    /* 외부 저장소가 현재 read만이라도 할 수 있는 상태인지 확인한다 */
-    public boolean isExternalStorageReadable() {
-        String state = Environment.getExternalStorageState();
-        if (Environment.MEDIA_MOUNTED.equals(state) ||
-                Environment.MEDIA_MOUNTED_READ_ONLY.equals(state)) {
-            Log.d(TAG, "read 가능");
-            return true;
-        }
-        return false;
     }
 }

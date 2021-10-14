@@ -54,7 +54,6 @@ public class Foreground extends Service {
     private DataInputStream dis;
     private DataOutputStream dos;
     private PrintWriter writer;
-    private BufferedReader br;
     private static String folderName = "Call";
 
     @Override
@@ -89,7 +88,7 @@ public class Foreground extends Service {
                     socket = new Socket(SERVER_IP, SERVER_PORT);
                     dos = new DataOutputStream(socket.getOutputStream());
                     writer = new PrintWriter(socket.getOutputStream(), true);
-                    br = new BufferedReader(new InputStreamReader(socket.getInputStream(),"UTF-8"));
+                    BufferedReader br = new BufferedReader(new InputStreamReader(socket.getInputStream(), "UTF-8"));
                     Log.d(TAG, "Socket : "+socket);
                     while(true){
                         String sendData = findData(); // 통화 중 저장된 녹음파일 가져오기
