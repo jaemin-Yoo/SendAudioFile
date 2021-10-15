@@ -96,10 +96,12 @@ class Foreground : Service() {
                                     dos!!.flush()
                                 }
                                 Log.d(TAG, "Data Transmitted OK!")
-                                connTime = sendData.substring(
-                                    sendData.length - 17,
-                                    sendData.length - 4
-                                ) // connTime 재정의
+                                if (sendData != null) {
+                                    connTime = sendData.substring(
+                                        sendData.length - 17,
+                                        sendData.length - 4
+                                    )
+                                } // connTime 재정의
                                 val recvData = br.readLine() // 한 줄씩 받기 때문에 개행문자(\n)를 받아야 대기상태에 안머무름
                                 Log.d(TAG, "recvData : $recvData")
                                 if (recvData == null) {
@@ -143,14 +145,21 @@ class Foreground : Service() {
         }
     }
 
-    private fun findData(): String {
-        val fileList = FileList(folderName) // 통화 목록에 있는 파일 리스트 가져오기
-        val tempList: MutableList<String?> = ArrayList()
-        for (s in fileList) {
+    private fun findData(): String? {
+        val filepath = Environment.getExternalStorageDirectory()
+        val path = filepath.path // /storage/emulated/0
+        val directory = File(path + "/" + folderName)
+        val files = directory.listFiles()
+        val filesNameList: MutableList<String> = ArrayList()
+        for (i in files.indices) {
+            filesNameList.add(files[i].name)
+        }
+        val tempList: MutableList<String> = ArrayList()
+        for (s in filesNameList) {
             val fileDate = s.substring(s.length - 17, s.length - 4) // 날짜만 추출
             tempList.add(fileDate)
         }
-        tempList.add(connTime)
+        tempList.add(connTime!!)
         Collections.sort(tempList, Collections.reverseOrder()) // 날짜 정렬
         val tempData = tempList[0] // 가장 최근 날짜 추출
 
@@ -159,26 +168,14 @@ class Foreground : Service() {
             return "Not yet"
         }
         var sendFileName = ""
-        for (s in fileList) {
-            if (s.contains(tempData!!)) {
+        for (s in filesNameList) {
+            if (s.contains(tempData)) {
                 sendFileName = s // 가장 최근 날짜 파일 추출
                 Log.d(TAG, "sendFileName : $sendFileName")
                 break
             }
         }
         return sendFileName
-    }
-
-    fun FileList(strFolderName: String): List<String> {
-        val filepath = Environment.getExternalStorageDirectory()
-        val path = filepath.path // /storage/emulated/0
-        val directory = File("$path/$strFolderName")
-        val files = directory.listFiles()
-        val filesNameList: MutableList<String> = ArrayList()
-        for (i in files.indices) {
-            filesNameList.add(files[i].name)
-        }
-        return filesNameList
     }
 
     // Notification Builder를 만드는 메소드
