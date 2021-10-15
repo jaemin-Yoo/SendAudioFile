@@ -4,17 +4,18 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Bundle
-import android.os.Environment
-import android.os.Handler
-import android.os.Looper
+import android.media.MediaPlayer
+import android.os.*
 import android.telephony.PhoneStateListener
 import android.telephony.TelephonyManager
 import android.text.TextUtils
 import android.util.Log
+import android.view.View
+import android.widget.AdapterView.OnItemClickListener
 import android.widget.Button
 import android.widget.ListView
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -45,6 +46,15 @@ class MainActivity : AppCompatActivity() {
     private var br: BufferedReader? = null
     private val folderName = "Call"
 
+    // MediaPlayer
+    private var mediaPlayer: MediaPlayer? = null
+    private var stateMediaPlayer = 0
+    private val STATE_NOTSTARTER = 0
+    private val STATE_PLAYING = 1
+    private val STATE_PAUSING = 2
+    private val STATEMP_ERROR = 3
+
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -69,8 +79,35 @@ class MainActivity : AppCompatActivity() {
             val listView = findViewById<ListView>(R.id.listView)
             myAdapter = MyAdapter(this@MainActivity, dataArrayList)
             listView.adapter = myAdapter
+            listView.onItemClickListener =
+                OnItemClickListener { adapterView, view, i, l ->
+                    val fileName: String = myAdapter!!.getItem(i).record_name
+                    initMediaPlayer(fileName)
+                    when (stateMediaPlayer) {
+                        STATE_NOTSTARTER -> {
+                            mediaPlayer!!.start()
+                            stateMediaPlayer = STATE_PLAYING
+                            Toast.makeText(this@MainActivity, "재생", Toast.LENGTH_SHORT).show()
+                        }
+                        STATE_PLAYING -> {
+                            mediaPlayer!!.pause()
+                            stateMediaPlayer = STATE_PAUSING
+                        }
+                        STATE_PAUSING -> {
+                            mediaPlayer!!.start()
+                            stateMediaPlayer = STATE_PLAYING
+                        }
+                    }
+                }
             sThread.start()
         }
+
+        val btn_stop : Button = findViewById<Button>(R.id.btn_stop)
+        btn_stop.setOnClickListener(View.OnClickListener {
+            mediaPlayer!!.stop()
+            mediaPlayer!!.release()
+            Toast.makeText(this@MainActivity, "중지", Toast.LENGTH_SHORT).show()
+        })
 
         val btn_test : Button = findViewById(R.id.btn_test)
         btn_test.setOnClickListener {
@@ -92,53 +129,48 @@ class MainActivity : AppCompatActivity() {
                 writer = PrintWriter(socket!!.getOutputStream(), true)
                 br = BufferedReader(InputStreamReader(socket!!.getInputStream(), "UTF-8"))
                 Log.d(TAG, "Socket : $socket")
-                val fileList = FileList(folderName) // 통화 목록에 있는 파일 리스트 가져오기
-                val tempList: MutableList<String> = ArrayList()
-                for (s in fileList) {
-                    val fileDate = s.substring(s.length - 17, s.length - 4) // 날짜만 추출
-                    tempList.add(fileDate)
-                }
-                Collections.sort(tempList, Collections.reverseOrder()) // 날짜 정렬
-                for (i in 0..4) {
-                    val tempData = tempList[i]
-                    var sendData = ""
-                    for (s in fileList) {
-                        if (s.contains(tempData)) {
-                            sendData = s // 해당 날짜 파일 추출
-                            Log.d(TAG, "sendData : $sendData")
-                            break
+
+                val fileList = getRecordList()
+
+                if (fileList!!.size != 0){
+                    for (i in 0..4) {
+                        val sendData = fileList!![i]
+
+                        // 파일 경로 가져오기
+                        val filepath = Environment.getExternalStorageDirectory()
+                        val path = filepath.path // /storage/emulated/0
+
+                        // 파일 사이즈 추출
+                        val mFile = File(path + "/" + folderName + "/" + sendData)
+                        val fileSize = mFile.length()
+                        val strFileSize = java.lang.Long.toString(fileSize)
+                        Log.d(TAG, "fileSize : $strFileSize")
+                        val fileInfo = "$sendData/$strFileSize"
+                        writer!!.printf(fileInfo)
+
+                        // 파일 전송
+                        dis = DataInputStream(FileInputStream(mFile))
+                        var read: Int
+                        val buf = ByteArray(1024)
+                        while (dis!!.read(buf).also { read = it } > 0) {
+                            dos!!.write(buf, 0, read)
+                            dos!!.flush()
                         }
+                        Log.d(TAG, "Data Transmitted OK!")
+                        val recvData = br!!.readLine() // 한 줄씩 받기 때문에 개행문자(\n)를 받아야 대기상태에 안머무름
+                        Log.d(TAG, "recvData : $recvData")
+                        dataArrayList!!.add(SampleData(sendData, "   ->   $recvData"))
+                        handler = Handler(Looper.getMainLooper())
+                        handler.post { myAdapter!!.notifyDataSetChanged() }
+
                     }
-
-                    // 파일 경로 가져오기
-                    val filepath = Environment.getExternalStorageDirectory()
-                    val path = filepath.path // /storage/emulated/0
-
-                    // 파일 사이즈 추출
-                    val mFile = File(path + "/" + folderName + "/" + sendData)
-                    val fileSize = mFile.length()
-                    val strFileSize = java.lang.Long.toString(fileSize)
-                    Log.d(TAG, "fileSize : $strFileSize")
-                    val fileInfo = "$sendData/$strFileSize"
-                    writer!!.printf(fileInfo)
-
-                    // 파일 전송
-                    dis = DataInputStream(FileInputStream(mFile))
-                    var read: Int
-                    val buf = ByteArray(1024)
-                    while (dis!!.read(buf).also { read = it } > 0) {
-                        dos!!.write(buf, 0, read)
-                        dos!!.flush()
-                    }
-                    Log.d(TAG, "Data Transmitted OK!")
-                    val recvData = br!!.readLine() // 한 줄씩 받기 때문에 개행문자(\n)를 받아야 대기상태에 안머무름
-                    Log.d(TAG, "recvData : $recvData")
-                    dataArrayList!!.add(SampleData("$sendData   ->   ", recvData))
-                    handler = Handler(Looper.getMainLooper())
-                    handler.post { myAdapter!!.notifyDataSetChanged() }
+                    dataArrayList!!.removeAt(0)
+                    dataArrayList!!.add(0, SampleData("완료", ""))
+                } else{
+                    dataArrayList!!.removeAt(0)
+                    dataArrayList!!.add(0, SampleData("완료 (녹음파일이 없습니다.)", ""))
                 }
-                dataArrayList!!.removeAt(0)
-                dataArrayList!!.add(0, SampleData("완료", ""))
+
                 handler = Handler(Looper.getMainLooper())
                 handler.post { myAdapter!!.notifyDataSetChanged() }
                 dis!!.close()
@@ -156,17 +188,46 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun FileList(strFolderName: String): List<String> {
+    private fun initMediaPlayer(fileName: String) {
         val filepath = Environment.getExternalStorageDirectory()
         val path = filepath.path // /storage/emulated/0
-        val directory = File("$path/$strFolderName")
+        mediaPlayer = MediaPlayer()
+        try {
+            mediaPlayer!!.setDataSource(path + "/" + folderName + "/" + fileName)
+            mediaPlayer!!.prepare()
+            stateMediaPlayer = STATE_NOTSTARTER
+        } catch (e: IOException) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun getRecordList(): List<String>? {
+        val filepath = Environment.getExternalStorageDirectory()
+        val path = filepath.path // /storage/emulated/0
+        val directory = File(path + "/" + folderName)
         val files = directory.listFiles()
-        val filesNameList: MutableList<String> = ArrayList()
+        val filesNameList: MutableList<String> = java.util.ArrayList()
         for (i in files.indices) {
             filesNameList.add(files[i].name)
         }
-        return filesNameList
+        val tempList: MutableList<String> = java.util.ArrayList()
+        for (s in filesNameList) {
+            val fileDate = s.substring(s.length - 17, s.length - 4) // 날짜만 추출
+            tempList.add(fileDate)
+        }
+        Collections.sort(tempList, Collections.reverseOrder()) // 날짜 정렬
+        val sortList: MutableList<String> = java.util.ArrayList()
+        for (t in tempList) {
+            for (s in filesNameList) {
+                if (s.contains(t)) {
+                    sortList.add(s)
+                }
+            }
+        }
+        return sortList
     }
+
+
 
     var phoneStateListener: PhoneStateListener = object : PhoneStateListener() {
         override fun onCallStateChanged(state: Int, phoneNumber: String) {

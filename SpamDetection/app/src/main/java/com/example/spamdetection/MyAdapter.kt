@@ -18,7 +18,7 @@ class MyAdapter(context: Context?, data: ArrayList<SampleData>) :
         return sample.size
     }
 
-    override fun getItem(i: Int): Any {
+    override fun getItem(i: Int): SampleData {
         return sample[i]
     }
 
