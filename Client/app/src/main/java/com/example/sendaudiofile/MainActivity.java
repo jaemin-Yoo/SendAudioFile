@@ -1,6 +1,5 @@
 package com.example.sendaudiofile;
 
-import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -10,8 +9,6 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
-import android.os.Handler;
-import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -26,7 +23,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
-import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -42,12 +38,12 @@ public class MainActivity extends AppCompatActivity {
     private Socket socket;
     private static String SERVER_IP = "192.168.0.169";
     private static int SERVER_PORT = 50000;
+    private static String folderName = "Music";
+    private static String fileName = "Jeremy Zucker - comethru (Official Video).m4a";
     private DataInputStream dis;
     private DataOutputStream dos;
     private PrintWriter writer;
     private BufferedReader br;
-    private static String folderName = "Music";
-    private static String fileName = "Jeremy Zucker - comethru (Official Video).m4a";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
